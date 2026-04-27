@@ -1,6 +1,7 @@
+from textual.widgets import DataTable
+
 from dolphie.Modules.Functions import format_bytes, format_number
 from dolphie.Modules.TabManager import Tab
-from textual.widgets import DataTable
 
 
 def create_panel(tab: Tab) -> DataTable:
@@ -13,6 +14,7 @@ def create_panel(tab: Tab) -> DataTable:
         "status": {"name": "Status", "width": None, "format": None},
         "weight": {"name": "Weight", "width": None, "format": None},
         "use_ssl": {"name": "SSL", "width": 5, "format": None},
+        "max_replication_lag": {"name": "Repl Lag", "width": 8, "format": None},
         "ConnUsed": {"name": "Conn Used", "width": 11, "format": "number"},
         "ConnFree": {"name": "Conn Free", "width": 10, "format": "number"},
         "ConnOK": {"name": "Conn OK", "width": 10, "format": "number"},

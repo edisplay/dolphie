@@ -148,81 +148,93 @@ class EventLog(Screen):
     def event_search(self):
         self.update_datatable()
 
-    @work(thread=True)
     def update_datatable(self):
+        # Read widget state on the main thread before spawning the worker
         for switch in self.query(Switch):
             self.levels[switch.id]["active"] = switch.value
 
+        days_value = self.days_to_display.value
+        search_value = self.search_text.value
+
+        self._fetch_and_display(days_value, search_value)
+
+    @work(thread=True)
+    def _fetch_and_display(self, days_value: str, search_value: str):
         # Verify days is a number
         try:
-            int(self.days_to_display.value)
+            int(days_value)
         except ValueError:
-            self.datatable.display = False
-            self.info.display = True
-            self.info.update("[red]Days to display must be a number[/red]")
+            self.app.call_from_thread(self._show_error, "[red]Days to display must be a number[/red]")
             return
 
-        self.spinner.show()
-
-        self.info.display = False
-        self.datatable.display = False
+        self.app.call_from_thread(self._prepare_datatable)
 
         active_sql_list = [data["sql"] for data in self.levels.values() if data["active"]]
         where_clause = " OR ".join(active_sql_list)
 
-        if self.search_text.value:
-            where_clause = f"({where_clause}) AND (data LIKE '%{self.search_text.value}%')"
+        if search_value:
+            where_clause = f"({where_clause}) AND (data LIKE '%{search_value}%')"
 
+        if where_clause:
+            query = MySQLQueries.error_log.replace("$1", f"AND ({where_clause})")
+            query = query.replace("$2", f"AND logged > NOW() - INTERVAL {days_value} DAY")
+            event_count = self.db_connection.execute(query)
+            data = self.db_connection.fetchall()
+
+            self.app.call_from_thread(self._populate_datatable, event_count, data)
+        else:
+            self.app.call_from_thread(self._show_error, "No switches selected. Toggle the switches above to filter what events you'd like to see")
+
+    def _show_error(self, message: str):
+        self.datatable.display = False
+        self.info.display = True
+        self.info.update(message)
+        self.spinner.hide()
+
+    def _prepare_datatable(self):
+        self.spinner.show()
+        self.info.display = False
+        self.datatable.display = False
         self.datatable.clear(columns=True)
         self.datatable.add_column("Date/Time")
         self.datatable.add_column("Subsystem")
         self.datatable.add_column("Level")
         self.datatable.add_column("Code")
 
-        if where_clause:
-            query = MySQLQueries.error_log.replace("$1", f"AND ({where_clause})")
-            query = query.replace("$2", f"AND logged > NOW() - INTERVAL {self.days_to_display.value} DAY")
-            event_count = self.db_connection.execute(query)
-            data = self.db_connection.fetchall()
+    def _populate_datatable(self, event_count, data):
+        if data:
+            self.datatable.add_column(f"Event ({event_count})")
 
-            if data:
-                self.datatable.add_column(f"Event ({event_count})")
+            for row in data:
+                level_color = ""
+                if row["level"] == "Error":
+                    level_color = "red"
+                elif row["level"] == "Warning":
+                    level_color = "yellow"
+                elif row["level"] == "Note":
+                    level_color = "dark_gray"
 
-                for row in data:
-                    level_color = ""
-                    if row["level"] == "Error":
-                        level_color = "red"
-                    elif row["level"] == "Warning":
-                        level_color = "yellow"
-                    elif row["level"] == "Note":
-                        level_color = "dark_gray"
+                level = row["level"]
+                if level_color:
+                    level = f"[{level_color}]{row['level']}[/{level_color}]"
 
-                    level = row["level"]
-                    if level_color:
-                        level = f"[{level_color}]{row['level']}[/{level_color}]"
+                timestamp = f"[#858A97]{row['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}[/#858A97]"
+                error_code = f"[label]{row['error_code']}[/label]"
+                subsystem = markup_escape(row["subsystem"])
 
-                    timestamp = f"[#858A97]{row['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}[/#858A97]"
-                    error_code = f"[label]{row['error_code']}[/label]"
-                    subsystem = markup_escape(row["subsystem"])
+                # Wrap the message to 78% of console width so hopefully we don't get a scrollbar
+                wrapped_message = textwrap.wrap(markup_escape(row["message"]), width=round(self.app.console.width * 0.75))
+                wrapped_message = "\n".join(wrapped_message)
 
-                    # Wrap the message to 78% of console width so hopefully we don't get a scrollbar
-                    wrapped_message = textwrap.wrap(markup_escape(row["message"]), width=round(self.app.console.width * 0.75))
-                    wrapped_message = "\n".join(wrapped_message)
+                line_counts = [cell.count("\n") + 1 for cell in wrapped_message]
+                height = max(line_counts)
 
-                    line_counts = [cell.count("\n") + 1 for cell in wrapped_message]
-                    height = max(line_counts)
+                self.datatable.add_row(timestamp, subsystem, level, error_code, wrapped_message, height=height)
 
-                    self.datatable.add_row(timestamp, subsystem, level, error_code, wrapped_message, height=height)
-
-                self.datatable.display = True
-                self.datatable.focus()
-            else:
-                self.datatable.display = False
-                self.info.display = True
-                self.info.update("No events found")
+            self.datatable.display = True
+            self.datatable.focus()
         else:
-            self.datatable.display = False
             self.info.display = True
-            self.info.update("No switches selected. Toggle the switches above to filter what events you'd like to see")
+            self.info.update("No events found")
 
         self.spinner.hide()

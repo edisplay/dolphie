@@ -1,4 +1,11 @@
+from __future__ import annotations
+
 import re
+
+from rich.style import Style
+from rich.table import Table
+from textual.containers import ScrollableContainer
+from textual.widgets import Static
 
 from dolphie.DataTypes import ConnectionSource, Replica
 from dolphie.Modules.Functions import (
@@ -11,10 +18,6 @@ from dolphie.Modules.ManualException import ManualException
 from dolphie.Modules.MySQL import Database
 from dolphie.Modules.Queries import MySQLQueries
 from dolphie.Modules.TabManager import Tab
-from rich.style import Style
-from rich.table import Table
-from textual.containers import ScrollableContainer
-from textual.widgets import Static
 
 # Example GTID: 3beacd96-6fe3-18ec-9d95-b4592zec4b45:1-26
 _GTID_PATTERN = re.compile(r"\b(\w+(?:-\w+){4}):(.+)\b")
@@ -182,9 +185,7 @@ def create_panel(tab: Tab):
                     last_error_time = "" if last_error_time == "0000-00-00 00:00:00.000000" else str(last_error_time)
 
                     # Calculate the usage percentage for each worker for the current poll
-                    usage_percentage = (
-                        round(100 * (worker_diff / all_workers_diff), 2) if all_workers_diff > 0 else 0.0
-                    )
+                    usage_percentage = round(100 * (worker_diff / all_workers_diff), 2) if all_workers_diff > 0 else 0.0
                     retries_count = row.get("applying_transaction_retries_count", 0)
                     retries_count = f"[dark_gray]{retries_count}" if retries_count == 0 else f"[red]{retries_count}"
 
@@ -192,15 +193,17 @@ def create_panel(tab: Tab):
                     row_values = []
                     if is_multi_channel:
                         row_values.append(f"[highlight]{channel_name}[/highlight]")
-                    row_values.extend([
-                        f"[b highlight]{worker_id}[/b highlight]: {thread_id}",
-                        f"{usage_percentage}%",
-                        format_picoseconds(float(row["apply_time"])),
-                        last_applied_transaction,
-                        retries_count,
-                        last_error_time,
-                        row.get("applying_transaction_last_transient_error_message", "N/A"),
-                    ])
+                    row_values.extend(
+                        [
+                            f"[b highlight]{worker_id}[/b highlight]: {thread_id}",
+                            f"{usage_percentage}%",
+                            format_picoseconds(float(row["apply_time"])),
+                            last_applied_transaction,
+                            retries_count,
+                            last_error_time,
+                            row.get("applying_transaction_last_transient_error_message", "N/A"),
+                        ]
+                    )
                     table_thread_applier_status.add_row(*row_values)
 
                 if is_multi_channel:
@@ -251,9 +254,7 @@ def create_panel(tab: Tab):
             for channel in dolphie.replication_status:
                 channel_name = channel.get("Channel_Name", "")
                 channel_key = channel_name or "_default"
-                items[channel_key] = create_replication_table(
-                    tab, channel_data=channel, show_channel_name=True
-                )
+                items[channel_key] = create_replication_table(tab, channel_data=channel, show_channel_name=True)
             _sync_grid(
                 tab.replication_status_grid, items, "replication_channel", tab.id, dolphie.app, tab.channel_widgets
             )
@@ -351,8 +352,7 @@ def create_panel(tab: Tab):
                 }
 
         tab.clusterset_title.update(
-            f"[b]{panels.replication.content_key}ClusterSet "
-            f"([$highlight]{len(cluster_meta)}[/$highlight] clusters)"
+            f"[b]{panels.replication.content_key}ClusterSet " f"([$highlight]{len(cluster_meta)}[/$highlight] clusters)"
         )
 
         items = {}
@@ -511,12 +511,15 @@ def create_replication_table(
         table.add_column()
         table.add_column(overflow="fold")
 
+    channel_name = data.get("Channel_Name", "")
+
     if replica:
         table.add_row("[b][light_blue]Host", f"[light_blue]{replica.host}")
+        if channel_name:
+            table.add_row("[b][label]Channel", channel_name)
         table.add_row("[b][label]Version", f"{replica.host_distro} {replica.mysql_version}")
     else:
-        if show_channel_name and not dashboard_table:
-            channel_name = data.get("Channel_Name", "")
+        if channel_name and not dashboard_table:
             table.add_row("[b][label]Channel", channel_name)
         table.add_row("[b][label]Primary", primary_host)
 
@@ -645,9 +648,7 @@ def create_replication_table(
             if replica:
                 # Determine the primary server ID for coloring
                 replica_primary_server_id = (
-                    dolphie.replication_status[0].get("Master_Server_Id")
-                    if dolphie.replication_status
-                    else None
+                    dolphie.replication_status[0].get("Master_Server_Id") if dolphie.replication_status else None
                 )
                 primary_id = replica_primary_server_id or dolphie.global_variables.get("server_id")
 

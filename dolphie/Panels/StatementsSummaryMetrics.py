@@ -140,7 +140,7 @@ def create_panel(tab: Tab):
     display_data = dict(
         sorted(
             data.items(),
-            key=lambda element: element[1]["sum_timer_wait"][display_mode],
+            key=lambda element: element[1]["sum_timer_wait"].get(display_mode, 0),
             reverse=True,
         )[: MAX_ROWS + 1]
     )

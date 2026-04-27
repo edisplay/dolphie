@@ -1,9 +1,10 @@
+from rich.syntax import Syntax
+from textual.widgets import DataTable
+
 from dolphie.DataTypes import ProcesslistThread
 from dolphie.Modules.Functions import format_number, format_query
 from dolphie.Modules.Queries import MySQLQueries
 from dolphie.Modules.TabManager import Tab
-from rich.syntax import Syntax
-from textual.widgets import DataTable
 
 
 def create_panel(tab: Tab) -> DataTable:
@@ -43,7 +44,7 @@ def create_panel(tab: Tab) -> DataTable:
                 {
                     "name": "Database",
                     "field": "db",
-                    "width": 15,
+                    "width": 25,
                     "format_number": False,
                 },
             ]
@@ -233,7 +234,7 @@ def create_panel(tab: Tab) -> DataTable:
     if dolphie.replay_file:
         dolphie.processlist_threads = threads_to_render
 
-    title = f"{dolphie.panels.processlist.title} " f"([$highlight]{processlist_datatable.row_count}[/$highlight]"
+    title = f"{dolphie.panels.processlist.title} ([$highlight]{processlist_datatable.row_count}[/$highlight]"
     if dolphie.show_threads_with_concurrency_tickets:
         title += f"/[$highlight]{dolphie.global_variables.get('innodb_thread_concurrency')}[/$highlight]"
     title += ")"
